@@ -45,8 +45,8 @@ const C = {
   ok: "#0f8a4d", okBg: "#e8f7ee",
   chip: "#f1f3f9",
 };
-const SANS = "'Manrope', system-ui, -apple-system, sans-serif";
-const MONO = "'JetBrains Mono', ui-monospace, SFMono-Regular, monospace";
+const SANS = "var(--font-inter), Inter, system-ui, sans-serif";
+const MONO = "var(--font-inter), Inter, ui-monospace, SFMono-Regular, monospace";
 
 const TERMINAL = ["completed", "failed", "expired"];
 const TAB_LABEL = { mobile_money: "Mobile money", bank_transfer: "Bank", stablecoin: "Crypto" };
@@ -77,7 +77,7 @@ const BrandMark = ({ id, size = 26 }) => {
       style={{
         padding: "3px 7px", borderRadius: 6, background: b.bg, color: b.fg,
         border: b.bg === "#ffffff" ? "1px solid " + C.line : "none",
-        fontSize: 10.5, fontWeight: 800, letterSpacing: "-0.01em",
+        fontSize: 10.5, fontWeight: 600, letterSpacing: "-0.01em",
         whiteSpace: "nowrap", flexShrink: 0, lineHeight: 1.5,
       }}
     >
@@ -141,8 +141,8 @@ const Field = ({ label, value, mono = true }) => {
     >
       <span style={{ fontSize: 11.5, color: C.muted, flexShrink: 0 }}>{label}</span>
       <span style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-        <span style={{ fontFamily: mono ? MONO : SANS, fontSize: 12.5, fontWeight: 700, color: C.ink, wordBreak: "break-all", textAlign: "right" }}>{value}</span>
-        <span style={{ fontSize: 10, fontWeight: 800, color: copied ? C.ok : C.accent, flexShrink: 0 }}>{copied ? "✓" : "COPY"}</span>
+        <span style={{ fontFamily: mono ? MONO : SANS, fontSize: 12.5, fontWeight: 600, color: C.ink, wordBreak: "break-all", textAlign: "right" }}>{value}</span>
+        <span style={{ fontSize: 10, fontWeight: 600, color: copied ? C.ok : C.accent, flexShrink: 0 }}>{copied ? "✓" : "COPY"}</span>
       </span>
     </button>
   );
@@ -150,7 +150,7 @@ const Field = ({ label, value, mono = true }) => {
 
 const Check = ({ children }) => (
   <li style={{ display: "flex", gap: 8, alignItems: "flex-start", fontSize: 12.5, color: C.muted, lineHeight: 1.55 }}>
-    <span style={{ color: C.ok, fontWeight: 800, flexShrink: 0 }}>✓</span>
+    <span style={{ color: C.ok, fontWeight: 600, flexShrink: 0 }}>✓</span>
     <span>{children}</span>
   </li>
 );
@@ -405,7 +405,7 @@ export default function PayPage({ business, link }) {
 
   const securedFooter = (
     <p style={{ margin: "12px 0 0", display: "flex", alignItems: "center", justifyContent: "center", gap: 5, fontSize: 10.5, color: C.faint }}>
-      <span aria-hidden="true">🔒</span> Secured by <strong style={{ color: C.muted, fontWeight: 700 }}>ElementPay</strong>
+      <span aria-hidden="true">🔒</span> Secured by <strong style={{ color: C.muted, fontWeight: 600 }}>ElementPay</strong>
     </p>
   );
 
@@ -429,7 +429,7 @@ export default function PayPage({ business, link }) {
   if (liveStatus === "completed")
     return shell(
       <div style={{ padding: "30px 24px 24px", display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
-        <span style={{ width: 56, height: 56, borderRadius: 999, border: "2.5px solid " + C.ok, color: C.ok, display: "grid", placeItems: "center", fontSize: 26, fontWeight: 700 }}>✓</span>
+        <span style={{ width: 56, height: 56, borderRadius: 999, border: "2.5px solid " + C.ok, color: C.ok, display: "grid", placeItems: "center", fontSize: 26, fontWeight: 600 }}>✓</span>
         <h1 style={{ fontSize: 19, margin: "12px 0 0" }}>Payment received</h1>
         <p style={{ margin: 0, fontSize: 12.5, color: C.muted }}>A receipt has been sent to you.</p>
         <div style={{ width: "100%", marginTop: 16, display: "flex", flexDirection: "column" }}>
@@ -448,7 +448,7 @@ export default function PayPage({ business, link }) {
         <button
           type="button"
           onClick={() => { if (d.success_url) window.location.href = d.success_url; }}
-          style={{ marginTop: 18, width: "100%", padding: "13px 18px", borderRadius: 10, border: 0, background: C.accent, color: "#fff", fontSize: 14, fontWeight: 700, fontFamily: "inherit", cursor: "pointer" }}
+          style={{ marginTop: 18, width: "100%", padding: "13px 18px", borderRadius: 10, border: 0, background: C.accent, color: "#fff", fontSize: 14, fontWeight: 600, fontFamily: "inherit", cursor: "pointer" }}
         >
           Back to {d.business_name}
         </button>
@@ -459,14 +459,14 @@ export default function PayPage({ business, link }) {
     const f = FAILURES[active] || FAILURES.mobile_money;
     return shell(
       <div style={{ padding: "30px 24px 24px", display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
-        <span style={{ width: 56, height: 56, borderRadius: 999, background: C.badBg, color: C.bad, display: "grid", placeItems: "center", fontSize: 24, fontWeight: 700 }}>✕</span>
+        <span style={{ width: 56, height: 56, borderRadius: 999, background: C.badBg, color: C.bad, display: "grid", placeItems: "center", fontSize: 24, fontWeight: 600 }}>✕</span>
         <h1 style={{ fontSize: 19, margin: "12px 0 0", textAlign: "center" }}>{f.title}</h1>
         <p style={{ margin: 0, fontSize: 12.5, color: C.muted, textAlign: "center", lineHeight: 1.6 }}>{f.why}</p>
-        <p style={{ margin: "12px 0 0", padding: "7px 10px", borderRadius: 7, background: C.badBg, fontFamily: MONO, fontSize: 10.5, color: C.bad, fontWeight: 700 }}>
+        <p style={{ margin: "12px 0 0", padding: "7px 10px", borderRadius: 7, background: C.badBg, fontFamily: MONO, fontSize: 10.5, color: C.bad, fontWeight: 600 }}>
           {f.code} · You were not charged
         </p>
         <button type="button" onClick={reset}
-          style={{ marginTop: 16, width: "100%", padding: "13px 18px", borderRadius: 10, border: 0, background: C.accent, color: "#fff", fontSize: 14, fontWeight: 700, fontFamily: "inherit", cursor: "pointer" }}>
+          style={{ marginTop: 16, width: "100%", padding: "13px 18px", borderRadius: 10, border: 0, background: C.accent, color: "#fff", fontSize: 14, fontWeight: 600, fontFamily: "inherit", cursor: "pointer" }}>
           Try again
         </button>
         <button type="button" onClick={() => { reset(); setTab(null); }}
@@ -484,7 +484,7 @@ export default function PayPage({ business, link }) {
     <div style={{ padding: "16px 20px 20px" }}>
       {/* merchant + country */}
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <span style={{ width: 30, height: 30, borderRadius: 8, background: C.accent, color: "#fff", display: "grid", placeItems: "center", fontSize: 11.5, fontWeight: 800 }}>{initial}</span>
+        <span style={{ width: 30, height: 30, borderRadius: 8, background: C.accent, color: "#fff", display: "grid", placeItems: "center", fontSize: 11.5, fontWeight: 600 }}>{initial}</span>
         <span style={{ flex: 1, minWidth: 0 }}>
           <strong style={{ display: "block", fontSize: 13.5, lineHeight: 1.3 }}>{d.business_name}</strong>
           <span style={{ fontSize: 11, color: C.faint }}>{d.title}</span>
@@ -518,7 +518,7 @@ export default function PayPage({ business, link }) {
       {/* amount + rate hold */}
       <div style={{ marginTop: 14 }}>
         <div style={{ display: "flex", alignItems: "baseline", gap: 7 }}>
-          <span style={{ fontSize: 13, fontWeight: 700, color: C.muted, fontFamily: MONO }}>{head.currency}</span>
+          <span style={{ fontSize: 13, fontWeight: 600, color: C.muted, fontFamily: MONO }}>{head.currency}</span>
           <strong style={{ fontSize: 34, letterSpacing: "-0.03em", lineHeight: 1 }}>{money(head.amount, head.currency)}</strong>
         </div>
         <div style={{ marginTop: 7, display: "flex", alignItems: "center", gap: 7, fontSize: 11, color: C.muted }}>
@@ -591,7 +591,7 @@ export default function PayPage({ business, link }) {
                 </div>
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 13 }}>
-                  <span style={{ fontSize: 11.5, fontWeight: 700, color: C.muted }}>Choose your wallet</span>
+                  <span style={{ fontSize: 11.5, fontWeight: 600, color: C.muted }}>Choose your wallet</span>
                   {!isNative && providerErr ? (
                     <p style={{ margin: 0, padding: "10px 12px", borderRadius: 9, background: C.warnBg, color: C.warn, fontSize: 12, fontWeight: 600 }}>{providerErr}</p>
                   ) : null}
@@ -614,9 +614,9 @@ export default function PayPage({ business, link }) {
                   </div>
 
                   <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                    <span style={{ fontSize: 11.5, fontWeight: 700, color: C.muted }}>Mobile number</span>
+                    <span style={{ fontSize: 11.5, fontWeight: 600, color: C.muted }}>Mobile number</span>
                     <span style={{ display: "flex", alignItems: "stretch", border: "1px solid " + C.line, borderRadius: 10, overflow: "hidden", background: "#fbfcfe" }}>
-                      <span style={{ display: "grid", placeItems: "center", padding: "0 11px", background: C.chip, fontFamily: MONO, fontSize: 13, fontWeight: 700, color: C.muted, borderRight: "1px solid " + C.line }}>
+                      <span style={{ display: "grid", placeItems: "center", padding: "0 11px", background: C.chip, fontFamily: MONO, fontSize: 13, fontWeight: 600, color: C.muted, borderRight: "1px solid " + C.line }}>
                         {dialFor(country)}
                       </span>
                       <input type="tel" inputMode="numeric" autoComplete="tel-national" placeholder="712 345 678"
@@ -635,7 +635,7 @@ export default function PayPage({ business, link }) {
                   ) : null}
 
                   <button type="button" onClick={payMobile} disabled={paying}
-                    style={{ padding: "14px 18px", borderRadius: 10, border: 0, background: C.accent, color: "#fff", fontSize: 14, fontWeight: 700, fontFamily: "inherit", cursor: paying ? "default" : "pointer", opacity: paying ? 0.6 : 1 }}>
+                    style={{ padding: "14px 18px", borderRadius: 10, border: 0, background: C.accent, color: "#fff", fontSize: 14, fontWeight: 600, fontFamily: "inherit", cursor: paying ? "default" : "pointer", opacity: paying ? 0.6 : 1 }}>
                     {paying
                       ? <><Spinner size={15} color="#fff" /> Sending prompt…</>
                       : "Pay with " + (BRAND[wallet] ? BRAND[wallet].name : "mobile money") +
@@ -676,7 +676,7 @@ export default function PayPage({ business, link }) {
                       </span>
                     </span>
                     {mk && mk.bankRail ? (
-                      <span style={{ padding: "3px 8px", borderRadius: 999, background: C.accentSoft, color: C.accentInk, fontSize: 10, fontWeight: 800, flexShrink: 0 }}>
+                      <span style={{ padding: "3px 8px", borderRadius: 999, background: C.accentSoft, color: C.accentInk, fontSize: 10, fontWeight: 600, flexShrink: 0 }}>
                         {mk.bankRail}
                       </span>
                     ) : null}
@@ -690,7 +690,7 @@ export default function PayPage({ business, link }) {
                     <p style={{ margin: 0, padding: "10px 12px", borderRadius: 9, background: C.badBg, color: C.bad, fontSize: 12, fontWeight: 600 }}>{payError}</p>
                   ) : null}
                   <button type="button" onClick={() => startPay({ method: "paybill" })} disabled={paying}
-                    style={{ padding: "14px 18px", borderRadius: 10, border: 0, background: C.accent, color: "#fff", fontSize: 14, fontWeight: 700, fontFamily: "inherit", cursor: paying ? "default" : "pointer", opacity: paying ? 0.6 : 1 }}>
+                    style={{ padding: "14px 18px", borderRadius: 10, border: 0, background: C.accent, color: "#fff", fontSize: 14, fontWeight: 600, fontFamily: "inherit", cursor: paying ? "default" : "pointer", opacity: paying ? 0.6 : 1 }}>
                     {paying ? <><Spinner size={15} color="#fff" /> Preparing…</> : "Get transfer details · " + head.currency + " " + money(head.amount, head.currency)}
                   </button>
                 </div>
@@ -713,7 +713,7 @@ export default function PayPage({ business, link }) {
                     <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 2 }}>
                       <div style={{ display: "flex", justifyContent: "space-between", padding: "7px 0", fontSize: 12, color: C.muted }}>
                         <span>Network</span>
-                        <strong style={{ color: C.ink, fontWeight: 700 }}>{activeNet ? activeNet.sub : session.source_chain}</strong>
+                        <strong style={{ color: C.ink, fontWeight: 600 }}>{activeNet ? activeNet.sub : session.source_chain}</strong>
                       </div>
                       <div style={{ display: "flex", justifyContent: "space-between", padding: "7px 0", fontSize: 12, color: C.muted, borderTop: "1px dashed " + C.line }}>
                         <span>Send exactly</span>
@@ -728,7 +728,7 @@ export default function PayPage({ business, link }) {
                     </div>
                   </div>
                   {session.deposit_memo ? (
-                    <p style={{ margin: 0, padding: "9px 11px", borderRadius: 9, background: C.warnBg, color: C.warn, fontSize: 11.5, fontWeight: 700, lineHeight: 1.5 }}>
+                    <p style={{ margin: 0, padding: "9px 11px", borderRadius: 9, background: C.warnBg, color: C.warn, fontSize: 11.5, fontWeight: 600, lineHeight: 1.5 }}>
                       A Stellar payment without this memo cannot be matched and needs manual recovery.
                     </p>
                   ) : null}
@@ -744,7 +744,7 @@ export default function PayPage({ business, link }) {
                     </p>
                   ) : null}
                   <button type="button" onClick={refreshQuote} disabled={quoting}
-                    style={{ width: "100%", padding: "13px 16px", borderRadius: 10, border: 0, background: held === 0 ? C.accent : C.ink, color: "#fff", fontSize: 13.5, fontWeight: 700, fontFamily: "inherit", cursor: quoting ? "default" : "pointer", opacity: quoting ? 0.6 : 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                    style={{ width: "100%", padding: "13px 16px", borderRadius: 10, border: 0, background: held === 0 ? C.accent : C.ink, color: "#fff", fontSize: 13.5, fontWeight: 600, fontFamily: "inherit", cursor: quoting ? "default" : "pointer", opacity: quoting ? 0.6 : 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
                     {quoting ? <><Spinner size={14} color="#fff" /> Refreshing…</> : "Refresh quote"}
                   </button>
                   <button type="button" onClick={reset}
@@ -754,7 +754,7 @@ export default function PayPage({ business, link }) {
                 </div>
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 13 }}>
-                  <span style={{ fontSize: 11.5, fontWeight: 700, color: C.muted }}>Choose a network</span>
+                  <span style={{ fontSize: 11.5, fontWeight: 600, color: C.muted }}>Choose a network</span>
                   {networks.length ? (
                     <>
                       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 7 }}>
@@ -770,7 +770,7 @@ export default function PayPage({ business, link }) {
                               }}>
                               <img src={chainSrc(n.chain)} alt="" width="18" height="18" style={{ display: "block", borderRadius: 999, flexShrink: 0 }} />
                               <span style={{ minWidth: 0, textAlign: "left" }}>
-                                <span style={{ display: "block", fontSize: 11, fontWeight: 800, color: C.ink, lineHeight: 1.2 }}>{n.label}</span>
+                                <span style={{ display: "block", fontSize: 11, fontWeight: 600, color: C.ink, lineHeight: 1.2 }}>{n.label}</span>
                                 <span style={{ display: "block", fontSize: 9.5, color: C.faint, lineHeight: 1.3 }}>{n.sub}</span>
                               </span>
                             </button>
@@ -790,13 +790,13 @@ export default function PayPage({ business, link }) {
                               <span>
                                 Network fee
                                 {Number(stableQuote.bridge_fee_usdc) === 0 ? (
-                                  <span style={{ color: C.ok, fontWeight: 700 }}> · none on {activeNet.sub}</span>
+                                  <span style={{ color: C.ok, fontWeight: 600 }}> · none on {activeNet.sub}</span>
                                 ) : null}
                               </span>
                               <span style={{ fontFamily: MONO, color: C.ink }}>{stableQuote.bridge_fee_usdc} USDC</span>
                             </div>
                             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 10 }}>
-                              <span style={{ fontSize: 12.5, fontWeight: 700 }}>You send</span>
+                              <span style={{ fontSize: 12.5, fontWeight: 600 }}>You send</span>
                               <strong style={{ fontSize: 15, fontFamily: MONO }}>{stableQuote.customer_total_usdc} USDC</strong>
                             </div>
                           </>
@@ -819,7 +819,7 @@ export default function PayPage({ business, link }) {
                       ) : null}
                       <button type="button" disabled={paying}
                         onClick={() => startPay({ method: "stable_usdc", source_chain: (activeNet && activeNet.chain) || networks[0].chain })}
-                        style={{ padding: "14px 18px", borderRadius: 10, border: 0, background: C.accent, color: "#fff", fontSize: 14, fontWeight: 700, fontFamily: "inherit", cursor: paying ? "default" : "pointer", opacity: paying ? 0.6 : 1 }}>
+                        style={{ padding: "14px 18px", borderRadius: 10, border: 0, background: C.accent, color: "#fff", fontSize: 14, fontWeight: 600, fontFamily: "inherit", cursor: paying ? "default" : "pointer", opacity: paying ? 0.6 : 1 }}>
                         {paying
                           ? <><Spinner size={15} color="#fff" /> Preparing…</>
                           : "Pay with USDC · " + ((stableQuote && stableQuote.customer_total_usdc) || (usdcPrice && usdcPrice.charge_amount) || "") + " USDC"}
