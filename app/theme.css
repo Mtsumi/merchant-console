@@ -4,7 +4,15 @@
     --ink: oklch(0.19 0.012 250); --muted: oklch(0.45 0.009 250); --faint: oklch(0.56 0.007 250);
     --border: oklch(0.91 0.004 250); --border-strong: oklch(0.86 0.005 250);
     --line: oklch(0.93 0.003 250); --surface: oklch(0.955 0.003 250); --surface-soft: oklch(0.975 0.002 250);
-    --glass-line: transparent; --glass-shadow: none; --glass-blur: none; --ambient: radial-gradient(rgba(67,57,202,0.08) 1px, transparent 1px);
+    --glass-line: transparent; --glass-shadow: none; --glass-blur: none; --ambient: none;
+    --type-page: 600 20px/28px var(--font-inter), Inter, system-ui, sans-serif;
+    --type-section: 600 15px/22px var(--font-inter), Inter, system-ui, sans-serif;
+    --type-body: 400 14px/20px var(--font-inter), Inter, system-ui, sans-serif;
+    --type-cell: 400 14px/20px var(--font-inter), Inter, system-ui, sans-serif;
+    --type-th: 500 12px/16px var(--font-inter), Inter, system-ui, sans-serif;
+    --type-caption: 400 12px/16px var(--font-inter), Inter, system-ui, sans-serif;
+    --type-hero-bal: 600 32px/40px var(--font-inter), Inter, system-ui, sans-serif;
+    --radius-card: 12px;
     --code-bg: oklch(0.965 0.003 250); --code-text: oklch(0.3 0.018 250); --code-line: oklch(0.91 0.004 250);
     --indigo: #4339ca; --indigo-text: #3a30b8; --indigo-tint: #f0effc; --indigo-soft: #b7b2ef;
     --on-indigo: #ffffff;
@@ -53,7 +61,7 @@
   }
   body {
     margin: 0; -webkit-font-smoothing: antialiased; color: var(--ink);
-    background: var(--bg); background-image: var(--ambient); background-size: 18px 18px; background-attachment: fixed;
+    background: var(--bg);
   }
   select {
     appearance: none; -webkit-appearance: none;
@@ -67,10 +75,29 @@
   a:hover { color: var(--indigo-text); text-decoration: underline; }
   button, input, select, textarea { font: inherit; color: var(--ink); }
   *:focus-visible { outline: 2px solid var(--indigo); outline-offset: 2px; }
-  body { font-family: 'Manrope', system-ui, sans-serif; font-weight: 500; }
-  h1 { letter-spacing: -0.035em !important; font-weight: 800 !important; line-height: 1.02 !important; }
-  h2 { letter-spacing: -0.02em !important; font-weight: 700 !important; }
+  body { font-family: var(--font-inter), Inter, system-ui, sans-serif; font-weight: 400; font-size: 14px; line-height: 20px; }
+  h1 { letter-spacing: -0.02em !important; font: var(--type-page) !important; }
+  h2 { letter-spacing: -0.01em !important; font: var(--type-section) !important; }
   button { font-weight: 600; }
+  .ep-amount, [data-ep-amount] {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "cv11", "ss01";
+    font-family: var(--font-inter), Inter, system-ui, sans-serif;
+  }
+  .ep-mono, [data-ep-mono] {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-variant-numeric: normal;
+  }
+  .ep-card {
+    background: var(--panel-solid);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-card);
+    box-shadow: none;
+  }
+  .ep-status { font: 500 12px/16px var(--font-inter), Inter, system-ui, sans-serif; }
+  .ep-status-ok { color: var(--ok-text); background: var(--ok-bg); }
+  .ep-status-pending { color: var(--warn-text); background: var(--warn-bg); }
+  .ep-status-failed { color: var(--bad-text); background: var(--bad-bg); }
   [data-ep-auth] button { white-space: nowrap; }
   [data-ep-main] > header button, [data-ep-main] > header a, [data-ep-start] button, [data-ep-main] button[aria-expanded] { white-space: nowrap; flex-shrink: 0; }
   [data-ep-txtable] td, [data-ep-txtable] th, [data-ep-txtable] td span { white-space: nowrap; }
