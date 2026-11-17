@@ -255,6 +255,137 @@ A security/correctness review of the integration layer (run against the live bac
 - **"Log in with GitHub/Google" submitted the typed email and password** to `/auth/login` (the design bound them to the same handler as the real CTA). They now say social sign-in is unavailable.
 - **Balances showed the design's sample millions** on a zero-transaction account — see Balance honesty above.
 
+### Developers page (2026-11-15)
+
+Patches on top of the generated files — **a design re-export drops these**:
+
+| File | Patch |
+| --- | --- |
+| `lib/logic.js` | Dev sub-nav trimmed to API keys / Webhooks / the two "Soon" stubs (Events, Logs, Sandbox tools and API reference removed, plus the three "Docs" command-palette entries that were the only remaining route into the removed API-reference screen). Added the **Build with AI** values/handlers and a real-data branch for the usage card. |
+| `components/markup.jsx` | Usage card heading/subheading turned into `v.keyUsageTitle`/`v.keyUsageSubtitle` bindings; its meter bar made conditional on `u.fillStyle`; **Build with AI** section added after the usage section. Patched by `scratchpad/patch-markup.mjs`-style asserted replacements — each fragment is matched exactly once or the patch aborts. |
+| `lib/api.js` | `createApiKey(name, expiresInHours)` sends `expires_in_hours`. |
+| `lib/bridge.js` | `mapApiKey` carries `expiresAt`/`expiresLabel`; new `expiryLabel()` helper. |
+
+**Agent keys.** `POST /api-keys` accepts `expires_in_hours` (1–48, clamped
+server-side by `APIKeyRepo.MAX_KEY_TTL_HOURS`) and `APIKeyRepo.authenticate`
+filters expired keys out, so expiry is enforced at the single auth chokepoint
+rather than by a sweep job.
+
+> **Sandbox does not have this yet.** `https://sandbox.elementpay.net` runs the
+> older build, which ignores `expires_in_hours` and returns no `expires_at`.
+> Pydantic drops unknown fields silently, so a key created there **never
+> expires**. The console treats a missing `expires_at` as "no expiry": the badge
+> reads *No expiry*, the note turns red and the toast says the key must be
+> revoked by hand — it never claims a 24 h expiry it cannot prove. Once the
+> backend change is deployed the same button starts reporting a real expiry
+> with no frontend change.
+
+**Usage card.** There is no per-key rpm quota in the backend, so the design's
+"612 / 1,000 rpm" meters are demo-only. Signed in, the card retitles to *Recent
+API activity* and shows counts, success/failure split and p95 latency derived
+from `GET /developer/request-logs`, with no progress bars.
+
+### Sandbox is open; mocks stripped (2026-11-15)
+
+**KYB gates live only.** `xSandboxEnv()` in `lib/logic.js` is the single predicate:
+anything that moves only test money (payment links, invoices, contacts, catalog,
+bulk, payouts, team invites, the payment wizard, deposits, conversions,
+withdrawals) keys off the environment, not KYB. The `checkout`, `wallets`, `otc`
+and `paybill` views were gated on `liveApproved` and are now open in sandbox too.
+This matches the backend: `compliance_service` returns early outside live
+(`"Limits are enforced only when API_ENVIRONMENT is live or production"`), and
+`api_routes` only requires `kyc_verified` for live keys. The control that still
+enforces KYB is `setEnv` — you cannot switch to live without `liveApproved`.
+Deliberately unchanged: the "Live · needs verification" labels, the KYB
+checklist, the verification banner, and the `paused` block on live withdrawals.
+
+**Mock data removed.** 17 top-level datasets emptied (GP, CN/CNPAY/CNOUT, BPL/
+BCUST/BST8, XBENS/XREM/XGUEST/XPAY, CAT/CATPAY, KYB_PEOPLE, KYB_DOCS,
+BASE_ACCOUNTS, ORDERS) plus in-function `BULK`, the `activeLinks` samples, the
+hardcoded overview sparkline, `statements`, `stats`, `feeBreakdown`,
+`invoiceStats`, the demo API-key rows and the `keyUsage` meters. `KYB0` is now
+the blank shape, and every fabricated identity ("Acme Commerce Ltd", "Acme
+Foods", "Lagos Harbour Agents") is gone — fallbacks read "Your business".
+Overview KPIs are counted from the real order feed; anything with no endpoint
+behind it (volume, medians, week-on-week deltas, collected totals) shows "—".
+
+Kept on purpose: `ENDPOINTS` (real API-reference copy), `KYB_DOC_SETS` (document
+requirements per entity type), FX/corridor/market/geo config, colour palettes.
+
+Three latent crashes surfaced once the data was empty and are now fixed:
+`ACCOUNTS[ai]` dereferenced with no accounts (guarded by a placeholder plus
+`accAt()`), `LOGO()` emitting `url(undefined)`, and `xApplyHome` indexing local
+beneficiaries as `XBENS0[i - 12]` — valid only while twelve foreign rows
+preceded them, so the seeding that created them was removed.
+
+> Verified with `scratchpad/sweep-views.mjs`, which drives all 27 views through
+> `renderVals()` on a fresh signed-in sandbox account: 27/27 build, 0 throw, and
+> no NaN/Infinity/undefined reaches a rendered value. Re-run it after any further
+> mock removal — it catches empty-dataset crashes the type checker cannot.
+
+### API key CRUD (2026-11-15)
+
+Every key operation is now wired from the Developers table — each row has
+**Edit / Suspend-Resume / Revoke**, plus an inline edit panel for name and
+webhook.
+
+| Action | Endpoint | Notes |
+| --- | --- | --- |
+| Create | `POST /api-keys` | optional `expires_in_hours`, clamped to 48h |
+| List | `GET /users/me/api-keys` | returns `expires_at`, `is_expired`, `suspended` |
+| Rename | `PATCH /api-keys/{id}` | `{ name }` |
+| Suspend / resume | `PATCH /api-keys/{id}` | `{ suspended }` — reversible |
+| Webhook | `PATCH /api-keys/{id}/webhook` | `null` clears; blank secret keeps the current one |
+| Revoke | `DELETE /api-keys/{id}` | permanent |
+
+**Suspend is not revoke.** `suspended` is a separate column from `revoked`, and
+every update path is scoped to `revoked = false`. A key revoked because it
+leaked can never be renamed or un-suspended back into service. Both states fail
+closed in `APIKeyRepo.authenticate`, the single chokepoint all `X-API-Key` auth
+goes through.
+
+Actions are icon buttons (pencil / pause-play / trash) with `title` and
+`aria-label`, so the column stays narrow without becoming a guessing game. The
+pause icon flips to play once a key is suspended.
+
+Every state change confirms first, in a dialog that states the consequence
+("requests start failing with 401 immediately"). Revoking additionally requires
+typing `delete <key name>` — matched after trimming and case-sensitively, so
+`DELETE MBOKA SANDBOX` does not pass. Suspend and resume are reversible and
+need no typing.
+`epKeyAction()` in `lib/logic.js` is the one place mutations run: it reports the
+real error on failure and reloads from the server afterwards, so the table never
+shows a success the backend did not confirm.
+
+### Reports (2026-11-16)
+
+`GET /users/me/reports/export.csv` is the **only** export the backend can
+produce — orders, as CSV. Every other card (Settlements, Fees, FX, Balances,
+Statements, Product sales), every other format (XLSX, PDF) and scheduled email
+delivery have no endpoint, so they read *"coming soon"*, render dimmed and
+cannot be clicked into a failure. The Reconciliation, Performance and Fee
+schedule sub-tabs are marked **· Soon** and no longer open — they rendered
+fabricated matches, percentages and corridor pricing.
+
+Two bugs fixed while wiring it:
+
+- **The CSV download wrote the four characters `null` to disk.** It went through
+  `api.get()`, whose `request()` runs every body through `JSON.parse` and
+  returns `null` when that fails. Downloads now use `requestFile()`, which keeps
+  the bytes and reads the export headers.
+- **The default export window is the last 30 days**, so a merchant whose
+  activity is older got an empty file with no explanation. The console now asks
+  for the widest window the backend allows (366 days — `MAX_RANGE_DAYS`) and
+  names the window in the toast. On the sandbox account this is the difference
+  between 0 rows and **98**.
+
+> **Backend gap:** the export sets `Content-Disposition`, `X-Export-Rows` and
+> `X-Export-Truncated`, but `CORSMiddleware` in `app/main.py` has no
+> `expose_headers`, so **no browser client on another origin can read them**.
+> The console degrades honestly — it counts the rows in the CSV itself and
+> date-stamps the filename — but the fix belongs in the API:
+> `expose_headers=["Content-Disposition", "X-Export-Rows", "X-Export-Truncated"]`.
+
 ### Still unwired (no UI claims success)
 `notifications`, `referral` and `mfaStatus` are fetched and held in state but no screen reads them yet — the bell, referral page and Settings → Security still render design mock-ups. `voidInvoice`, `revokeApiKey`, `deleteWebhookEndpoint`, `contactHistory`, `reportsSummary` and the MFA enrolment helpers exist in `lib/api.js` with no call site.
 
