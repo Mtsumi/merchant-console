@@ -20,7 +20,7 @@
     --warn-bg: oklch(0.955 0.022 80); --warn-text: oklch(0.47 0.06 75);
     --bad-bg: oklch(0.955 0.018 25); --bad-text: oklch(0.48 0.08 25);
     --sand-bg: #f0effc; --sand-text: #3a30b8;
-    --rail: rgba(255,255,255,0.72); --rail-line: rgba(67,57,202,0.12);
+    --rail: #ffffff; --rail-line: rgba(67,57,202,0.12);
     --rail-text: oklch(0.19 0.012 250); --rail-muted: oklch(0.45 0.009 250); --rail-dim: oklch(0.56 0.007 250);
     --hero-ground: oklch(0.975 0.002 250); --hero-text: oklch(0.19 0.012 250); --hero-muted: oklch(0.45 0.009 250); --hero-dim: oklch(0.56 0.007 250);
     --hero-glass: #ffffff; --hero-line: oklch(0.91 0.004 250);
