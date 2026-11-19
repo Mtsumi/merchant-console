@@ -241,7 +241,15 @@ export default function PayPage({ business, link }) {
 
   const d = state.data || {};
   const cur = String(d.currency || "").toUpperCase();
-  const accepts = Array.isArray(d.accepts) ? d.accepts : [];
+  /* `allow_mpesa` is the authoritative checkout switch used by /pay. Some
+     deployed link-resolve responses currently return `accepts: []` and
+     `methods: []` despite `allow_mpesa: true`; honour the switch so those
+     links do not render a false “no payment method” dead end. Stablecoin
+     still requires the stricter accepts + source-chain contract below. */
+  const accepts = Array.isArray(d.accepts) ? d.accepts.slice() : [];
+  if (d.allow_mpesa === true && !accepts.some((a) => String(a).toLowerCase() === "mpesa")) {
+    accepts.push("mpesa");
+  }
 
   /* Live partner OnRamp catalog — same shape as GET /partner/catalog. */
   React.useEffect(() => {
