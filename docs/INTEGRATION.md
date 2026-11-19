@@ -148,9 +148,9 @@ Each feature below talks to the live aggregator. "Expected behaviour" is what yo
 `POST /auth/login` returns `{ mfa_required, mfa_token, methods }` for MFA-enabled accounts; completes at `POST /auth/mfa/verify`.
 **Expected:** accounts with TOTP enabled get a "Two-step verification" code prompt; a valid authenticator (or recovery) code finishes login. **Enrolment is wired too** — Settings → Security → Replace starts `POST /auth/mfa/totp/enrol`, shows the secret to add to your authenticator, and activates with the 6-digit code plus your account password (the backend requires both). Verified end-to-end on `jthuku490+biz2@gmail.com`, which now has MFA on.
 
-### 5. Business (collect profile) auto-creation
-`POST /businesses` on signup completion; `GET /businesses/me` on load.
-**Expected:** the business name typed at signup becomes the real profile (slug derived from the name). Links, invoices and contacts all hang off it.
+### 5. Business (collect profile) setup
+`POST /businesses` on signup completion; `GET /businesses/me` on load. Existing accounts without a collect profile are routed through a one-time profile setup before they can use checkout.
+**Expected:** the merchant chooses the customer-facing name and whether the profile is a registered company or a solo shop. Links, invoices and contacts are then attached to that profile; a missing-profile error opens this setup instead of leaving the merchant stuck on the link form.
 
 ### 6. Signed-in identity (rail, workspace, key modal)
 The design hardcoded "Acme Commerce Ltd" / "dev@acme.co · Developer" as literals in the markup. These are bindings now.

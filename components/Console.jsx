@@ -5,6 +5,7 @@
 import React from "react";
 import Logic from "../lib/logic";
 import Markup from "./markup";
+import BusinessProfileSetup from "./BusinessProfileSetup";
 
 // The design's data-props defaults (from the .dc.html <script data-props>):
 const PROPS = {
@@ -22,6 +23,13 @@ const PROPS = {
    "No `render` method found on the Component instance". */
 class ConsoleView extends Logic {
   render() {
+    if (this.state.screen === "console" && this.state.profileSetupRequired) {
+      return <BusinessProfileSetup
+        busy={this.state.profileSetupBusy}
+        error={this.state.profileSetupError}
+        onCreate={(profile) => this.epCreateBusinessProfile(profile)}
+      />;
+    }
     return <Markup v={this.renderVals()} />;
   }
 }
