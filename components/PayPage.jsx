@@ -2,15 +2,14 @@
    Built to the hosted-checkout design flow (v1, Nov 2026). Hand-written —
    NOT generated from the design system.
 
-   Shape of the card, top to bottom: merchant + country pill, amount with the
-   USDC equivalent and a held rate, three tabs (Mobile money / Bank / Crypto),
-   the method body, and a quiet secured line. Same card in every market — only
-   the wallet chips, the dial prefix and the bank rail label change.
+   Shape of the card, top to bottom: lock URL (elementpay → elementpay.net),
+   merchant + amount, a radio list of methods (mobile money / bank /
+   stablecoin), the selected method's body, and the pay CTA. Same card in
+   every market — only the wallet chips, dial prefix and bank rail change.
 
-   What the payer can choose is still the backend's call: tabs come from the
-   link's `methods` catalog, which is derived from `accepts`, so nothing is
-   offered that cannot settle. The market registry in lib/checkout-brand only
-   supplies local labelling for what the backend already allows. */
+   What the payer can choose is still the backend's call: methods come from
+   the link's `methods` catalog / `accepts`. The market registry only labels
+   what the backend already allows. */
 // @ts-nocheck
 "use client";
 
@@ -18,7 +17,7 @@ import React from "react";
 import QRCode from "qrcode";
 import {
   BRAND, MARKETS, NETWORKS,
-  chainSrc, composeMsisdn, detectCountry, dialFor, flagSrc, market,
+  brandKeyForProvider, chainSrc, composeMsisdn, detectCountry, dialFor, flagSrc, market,
 } from "../lib/checkout-brand";
 
 const BASE =
@@ -49,15 +48,59 @@ const SANS = "'Manrope', system-ui, -apple-system, sans-serif";
 const MONO = "'JetBrains Mono', ui-monospace, SFMono-Regular, monospace";
 
 const TERMINAL = ["completed", "failed", "expired"];
-const TAB_LABEL = { mobile_money: "Mobile money", bank_transfer: "Bank", stablecoin: "Crypto" };
+/* Rail keys match partner catalog / payment-methods: mobile_money | bank. */
+const TAB_LABEL = { mobile_money: "Mobile money", bank: "Bank", stablecoin: "Stablecoin" };
+const METHOD_META = {
+  mobile_money: { title: "Mobile money", note: "Approve the prompt on your phone" },
+  bank: { title: "Bank", note: "Send from your banking app" },
+  stablecoin: { title: "Stablecoin", note: "USDC · Stellar, Ethereum, Optimism" },
+};
 
 /* Failure copy keyed the way the design names them: a code, a plain reason,
    and always the reassurance that nothing was taken. */
 const FAILURES = {
   mobile_money: { code: "MM-1051", title: "Payment declined", why: "The wallet declined the request. Top up or use another wallet." },
-  bank_transfer: { code: "BK-2204", title: "Transfer returned", why: "Your bank returned the transfer. Check the details and send it again." },
+  bank: { code: "BK-2204", title: "Transfer returned", why: "Your bank returned the transfer. Check the details and send it again." },
   stablecoin: { code: "CR-3002", title: "Deposit window closed", why: "No deposit was seen in time and the address is now closed. Nothing was sent from your wallet." },
 };
+
+/** Project partner onramp.countries → hosted-checkout methods list. */
+function methodsFromOnramp(onrampCountries, accepts, sourceChains) {
+  const acceptsSet = (accepts || []).map((a) => String(a).toLowerCase());
+  const out = [];
+  if (acceptsSet.indexOf("mpesa") >= 0 && onrampCountries) {
+    const momoCountries = [];
+    const bankCountries = [];
+    Object.keys(onrampCountries).forEach((code) => {
+      const entry = onrampCountries[code];
+      if (!entry || !entry.enabled) return;
+      const cc = String(entry.country_code || code).toUpperCase();
+      if (!MARKETS[cc]) return;
+      const pms = entry.payment_methods || {};
+      const momo = pms.mobile_money || {};
+      const bank = pms.bank || {};
+      const lead = (MARKETS[cc] && MARKETS[cc].lead) || "mobile_money";
+      if (momo.enabled) {
+        momoCountries.push({
+          code: cc, currency: entry.currency, native: cc === "KE", lead,
+          providers: momo.providers || [], label: momo.label || "Mobile money",
+        });
+      }
+      if (bank.enabled) {
+        bankCountries.push({
+          code: cc, currency: entry.currency, lead,
+          providers: bank.providers || [], label: bank.label || "Bank",
+        });
+      }
+    });
+    if (momoCountries.length) out.push({ key: "mobile_money", label: "Mobile money", quote_type: "mobile_money", countries: momoCountries });
+    if (bankCountries.length) out.push({ key: "bank", label: "Bank", quote_type: "bank", countries: bankCountries });
+  }
+  if (acceptsSet.indexOf("usdc_evm") >= 0) {
+    out.push({ key: "stablecoin", label: "Stablecoin", quote_type: "stable_usdc", chains: sourceChains || [] });
+  }
+  return out;
+}
 
 const BrandMark = ({ id, size = 26 }) => {
   const b = BRAND[id];
@@ -171,10 +214,14 @@ export default function PayPage({ business, link }) {
   const [held, setHeld] = React.useState(null);
   const [providers, setProviders] = React.useState(null);
   const [providerErr, setProviderErr] = React.useState("");
+  const [onrampCountries, setOnrampCountries] = React.useState(null);
+  const [selectedProviderId, setSelectedProviderId] = React.useState("");
   /* Per-chain fee breakdown. The customer pays the CCTP bridge fee, so it has
      to be visible before they commit, not first seen on the deposit screen. */
   const [stableQuote, setStableQuote] = React.useState(null);
   const [quoting, setQuoting] = React.useState(false);
+  /* methods = choose a rail; details = phone / network / bank form for it. */
+  const [flow, setFlow] = React.useState("methods");
 
   React.useEffect(() => {
     let off = false;
@@ -196,40 +243,91 @@ export default function PayPage({ business, link }) {
   const cur = String(d.currency || "").toUpperCase();
   const accepts = Array.isArray(d.accepts) ? d.accepts : [];
 
-  const catalog = React.useMemo(() => {
-    if (Array.isArray(d.methods) && d.methods.length) return d.methods;
-    const out = [];
-    if (accepts.indexOf("mpesa") >= 0) out.push({ key: "mobile_money", countries: [{ code: "KE", native: true }] });
-    if (accepts.indexOf("paybill") >= 0) out.push({ key: "bank_transfer" });
-    if (accepts.indexOf("usdc_evm") >= 0) out.push({ key: "stablecoin", chains: d.source_chains || [] });
-    return out;
-  }, [d.methods, d.accepts, d.source_chains]);
-
-  const momoEntry = catalog.find((m) => m.key === "mobile_money") || {};
-  const offeredCountries = (momoEntry.countries || []).map((c) => c.code).filter((c) => MARKETS[c]);
-
-  /* Country first: detected from the device, changeable in one tap. */
+  /* Live partner OnRamp catalog — same shape as GET /partner/catalog. */
   React.useEffect(() => {
-    if (country || state.phase !== "ready") return;
+    if (state.phase !== "ready" || accepts.indexOf("mpesa") < 0) return;
+    let off = false;
+    (async () => {
+      try {
+        const res = await fetch(BASE + "/public/collect/catalog");
+        const body = await res.json().catch(() => null);
+        if (off || !res.ok) return;
+        const countries = (((body && body.data) || {}).onramp || {}).countries || null;
+        if (countries) setOnrampCountries(countries);
+      } catch (e) { /* keep skeleton methods from link resolve */ }
+    })();
+    return () => { off = true; };
+  }, [state.phase, accepts.join(",")]);
+
+  const catalog = React.useMemo(() => {
+    const skeleton = () => {
+      if (Array.isArray(d.methods) && d.methods.length) {
+        return d.methods.map((m) => (m.key === "bank_transfer" ? { ...m, key: "bank" } : m));
+      }
+      const out = [];
+      if (accepts.indexOf("mpesa") >= 0) out.push({ key: "mobile_money", countries: [{ code: "KE", native: true }] });
+      if (accepts.indexOf("usdc_evm") >= 0) out.push({ key: "stablecoin", chains: d.source_chains || [] });
+      return out;
+    };
+    if (onrampCountries) {
+      const live = methodsFromOnramp(onrampCountries, accepts, d.source_chains || []);
+      /* Local/sandbox YC often leaves every rail disabled — keep the resolve
+         skeleton so the payer still sees the partner country → method tree. */
+      const hasFiat = live.some((m) => m.key === "mobile_money" || m.key === "bank");
+      if (hasFiat) return live;
+      const base = skeleton();
+      const stable = live.find((m) => m.key === "stablecoin");
+      if (stable && !base.some((m) => m.key === "stablecoin")) base.push(stable);
+      return base;
+    }
+    return skeleton();
+  }, [onrampCountries, d.methods, d.accepts, d.source_chains, accepts.join(",")]);
+
+  const offeredCountries = React.useMemo(() => {
+    const codes = {};
+    catalog.forEach((m) => {
+      (m.countries || []).forEach((c) => { if (c.code && MARKETS[c.code]) codes[c.code] = true; });
+    });
+    return Object.keys(codes);
+  }, [catalog]);
+
+  const offeredKey = offeredCountries.join(",");
+  /* Country first: detected from the device, changeable in one tap.
+     Re-pick if the live catalog drops the previous guess. */
+  React.useEffect(() => {
+    if (state.phase !== "ready") return;
+    const missing = !country;
+    const dropped = Boolean(offeredKey) && offeredCountries.indexOf(country) < 0;
+    if (!missing && !dropped) return;
     setCountry(detectCountry(offeredCountries.length ? offeredCountries : null));
-  }, [state.phase, offeredCountries.length]);
+    setTab(null);
+  }, [state.phase, offeredKey, country]);
 
   const mk = market(country) || market("KE");
-  const countryRow = (momoEntry.countries || []).find((c) => c.code === country) || null;
+  const momoEntry = catalog.find((m) => m.key === "mobile_money") || {};
+  const bankEntry = catalog.find((m) => m.key === "bank") || {};
+  const countryRow =
+    (momoEntry.countries || []).find((c) => c.code === country) ||
+    (bankEntry.countries || []).find((c) => c.code === country) ||
+    null;
   const isNative = Boolean(countryRow && countryRow.native);
 
-  /* A method only applies where it can collect. Bank is M-Pesa paybill, i.e.
-     Kenya — offering it to a Nigerian payer would hand them a Kenyan business
-     number they cannot pay into. Crypto carries no country list and is
-     global. The catalog already states each method's countries; honour it. */
+  /* A method only applies where the catalog lists this country. Stablecoin
+     has no country list and is global. Honour the partner route shape. */
   const servesCountry = (m) => {
     if (!Array.isArray(m.countries) || !m.countries.length) return true;
     return m.countries.some((c) => c.code === country);
   };
-  const usable = country ? catalog.filter(servesCountry) : catalog;
+  /* Stablecoin collect requires a USDC-denominated link (merchant net on Stellar). */
+  const stableOk = cur === "USDC" && accepts.indexOf("usdc_evm") >= 0;
+  const usable = (country ? catalog.filter(servesCountry) : catalog).filter((m) => {
+    if (m.key === "stablecoin") return stableOk;
+    return true;
+  });
   const tabs = usable.map((m) => m.key);
-  /* The market decides which tab leads (Nigeria opens on Bank where it can). */
-  const defaultTab = tabs.indexOf(mk && mk.lead) >= 0 ? mk.lead : tabs[0];
+  /* Nigeria opens on Bank when the catalog enables it; otherwise market lead. */
+  const countryLead = (countryRow && countryRow.lead) || (mk && mk.lead) || "mobile_money";
+  const defaultTab = tabs.indexOf(countryLead) >= 0 ? countryLead : tabs[0];
   const active = tab && tabs.indexOf(tab) >= 0 ? tab : defaultTab;
 
   const chainsAvailable = ((catalog.find((m) => m.key === "stablecoin") || {}).chains || d.source_chains || [])
@@ -240,7 +338,7 @@ export default function PayPage({ business, link }) {
   const priceFor = (k) => ((d.pricing || {}).methods || {})[k] || null;
   const usdcPrice = priceFor(activeNet && activeNet.chain === "stellar" ? "stellar" : "usdc_evm");
   const localPrice =
-    active === "bank_transfer" ? priceFor("paybill") : isNative ? priceFor("mpesa") : null;
+    active === "bank" ? priceFor("paybill") : isNative ? priceFor("mpesa") : null;
 
   /* Headline is what THIS payer sends, in the currency they hold.
      Crypto is USDC. Kenya's rails are priced in KES up front. Other markets
@@ -265,10 +363,6 @@ export default function PayPage({ business, link }) {
     return () => clearInterval(h);
   }, [state.phase]);
 
-  React.useEffect(() => {
-    if (mk && mk.wallets && mk.wallets.length && !mk.wallets.includes(wallet)) setWallet(mk.wallets[0]);
-  }, [country]);
-
   const depositAddress = (session && session.deposit_address) || "";
   React.useEffect(() => {
     if (!depositAddress) { setQr(""); return; }
@@ -277,22 +371,73 @@ export default function PayPage({ business, link }) {
     return () => { off = true; };
   }, [depositAddress]);
 
-  /* Provider list for Yellow Card markets, loaded on country selection. */
+  /* Providers from the partner catalog bucket for this country + rail. */
   React.useEffect(() => {
-    if (active !== "mobile_money" || !country || isNative || !countryRow) return;
+    if (!country || (active !== "mobile_money" && active !== "bank")) {
+      setProviders(null);
+      return;
+    }
+    const entry = (catalog.find((m) => m.key === active) || {}).countries || [];
+    const row = entry.find((c) => c.code === country);
+    const fromCatalog = (row && row.providers) || null;
+    if (fromCatalog && fromCatalog.length) {
+      setProviders(fromCatalog);
+      setProviderErr("");
+      const first = fromCatalog[0];
+      const brand = brandKeyForProvider(first);
+      setWallet(brand || String(first.code || first.name || "").toLowerCase());
+      setSelectedProviderId(String(first.id || ""));
+      return;
+    }
+    /* Country not yet hydrated from live catalog — fall back to market wallets
+       for KE native, or refresh via payment-methods for other markets. */
+    if (isNative && active === "mobile_money" && mk && mk.wallets) {
+      setProviders(mk.wallets.map((w) => ({ code: w, name: (BRAND[w] && BRAND[w].name) || w, id: "" })));
+      setWallet(mk.wallets[0]);
+      setSelectedProviderId("");
+      setProviderErr("");
+      return;
+    }
     let off = false;
     setProviders(null); setProviderErr("");
     (async () => {
       try {
-        const res = await fetch(BASE + "/public/collect/momo-providers/" + country);
+        const res = await fetch(
+          BASE + "/public/collect/payment-methods?country=" + encodeURIComponent(country),
+        );
         const body = await res.json().catch(() => null);
         if (off) return;
         if (!res.ok) { setProviderErr("Wallet list is temporarily unavailable."); return; }
-        setProviders((body && body.data) || []);
+        const data = (body && body.data) || {};
+        /* Partner payment-methods: either flat methods[] or onramp bucket. */
+        const rows = Array.isArray(data.methods)
+          ? data.methods
+          : Array.isArray(data.onramp) ? data.onramp : [];
+        const match = rows.find((r) => String(r.type || r.quote_type || "") === active);
+        const nets = (match && (match.networks || match.providers)) || [];
+        const normalized = nets.map((n) => ({
+          id: n.id || n.network_id || "",
+          code: n.code || "",
+          name: n.name || n.code || "Provider",
+          enabled: n.enabled !== false,
+        })).filter((n) => n.enabled !== false);
+        if (!normalized.length) {
+          if (mk && mk.wallets && active === "mobile_money") {
+            setProviders(mk.wallets.map((w) => ({ code: w, name: (BRAND[w] && BRAND[w].name) || w, id: "" })));
+            setWallet(mk.wallets[0]);
+          } else {
+            setProviders([]);
+          }
+          return;
+        }
+        setProviders(normalized);
+        const first = normalized[0];
+        setWallet(brandKeyForProvider(first) || String(first.code || "").toLowerCase());
+        setSelectedProviderId(String(first.id || ""));
       } catch (e) { if (!off) setProviderErr("Wallet list is temporarily unavailable."); }
     })();
     return () => { off = true; };
-  }, [active, country, isNative]);
+  }, [active, country, isNative, catalog]);
 
   /* Quote the chosen chain so the bridge fee is on screen before the payer
      commits. One call per selection — not seven at resolve. */
@@ -356,14 +501,24 @@ export default function PayPage({ business, link }) {
   const payMobile = () => {
     const msisdn = composeMsisdn(country, localPhone);
     if (!msisdn) { setPayError("Enter the mobile number to charge."); return; }
-    if (isNative) return startPay({ method: "mpesa", payer_phone: msisdn });
-    const net = (providers || []).find((p) => p.name && wallet && p.name.toLowerCase().indexOf(String(BRAND[wallet] && BRAND[wallet].name || "").split(" ")[0].toLowerCase()) >= 0);
-    const networkId = (net && net.network_id) || (providers && providers[0] && providers[0].network_id);
+    if (isNative || country === "KE") {
+      return startPay({ method: "mpesa", payer_phone: msisdn, country: "KE" });
+    }
+    const net =
+      (providers || []).find((p) => String(p.id || "") === selectedProviderId) ||
+      (providers || []).find((p) => brandKeyForProvider(p) === wallet) ||
+      (providers || [])[0];
+    const networkId = (net && (net.id || net.network_id)) || selectedProviderId;
     if (!networkId) { setPayError("Pick a wallet to continue."); return; }
-    return startPay({ method: "momo", payer_phone: msisdn, country, network_id: networkId });
+    return startPay({
+      method: "mobile_money",
+      payer_phone: msisdn,
+      country,
+      network_id: networkId,
+    });
   };
 
-  const reset = () => { setSession(null); setLiveStatus(""); setPayError(""); };
+  const reset = () => { setSession(null); setLiveStatus(""); setPayError(""); setFlow("methods"); };
 
   /* The held rate has to expire — a bridge fee quoted ten minutes ago is not
      a price. Rather than silently going stale (or stranding the payer at
@@ -381,6 +536,17 @@ export default function PayPage({ business, link }) {
   };
 
   /* ---------------------------------------------------------- chrome */
+  const brandLink = (
+    <a
+      href="https://www.elementpay.net/"
+      target="_blank"
+      rel="noopener noreferrer"
+      style={{ color: "inherit", textDecoration: "underline", textUnderlineOffset: 2 }}
+    >
+      elementpay
+    </a>
+  );
+
   const shell = (children, below = true) => (
     <main style={{ minHeight: "100dvh", display: "grid", placeItems: "center", padding: "28px 16px", background: C.bg, fontFamily: SANS, color: C.ink }}>
       <Motion />
@@ -389,7 +555,7 @@ export default function PayPage({ business, link }) {
           <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 12px", background: "#f2f3f8", borderBottom: "1px solid " + C.line }}>
             <span aria-hidden="true" style={{ fontSize: 9, color: C.faint }}>🔒</span>
             <span style={{ fontFamily: MONO, fontSize: 10, color: C.faint }}>
-              pay.elementpay.net/c/{business}
+              pay.{brandLink}.net/c/{business}
             </span>
           </div>
           {children}
@@ -405,9 +571,75 @@ export default function PayPage({ business, link }) {
 
   const securedFooter = (
     <p style={{ margin: "12px 0 0", display: "flex", alignItems: "center", justifyContent: "center", gap: 5, fontSize: 10.5, color: C.faint }}>
-      <span aria-hidden="true">🔒</span> Secured by <strong style={{ color: C.muted, fontWeight: 700 }}>ElementPay</strong>
+      <span aria-hidden="true">🔒</span> Secured by{" "}
+      <a href="https://www.elementpay.net/" target="_blank" rel="noopener noreferrer"
+        style={{ color: C.muted, fontWeight: 700, textDecoration: "none" }}>
+        ElementPay
+      </a>
     </p>
   );
+
+  const methodTitle = (k) => (METHOD_META[k] && METHOD_META[k].title) || TAB_LABEL[k] || k;
+  const methodNote = (k) => {
+    if (k === "mobile_money") {
+      const fromProviders = (providers && active === "mobile_money" ? providers : null);
+      const names = fromProviders
+        ? fromProviders.slice(0, 3).map((p) => p.name)
+        : ((mk && mk.wallets) || []).map((w) => (BRAND[w] && BRAND[w].name) || w).filter(Boolean);
+      if (names.length >= 2) return names.slice(0, 3).join(", ") + (names.length > 3 ? "…" : "");
+      return "Approve the prompt on your phone";
+    }
+    if (k === "bank") {
+      const bankProviders = ((bankEntry.countries || []).find((c) => c.code === country) || {}).providers || [];
+      if (bankProviders.length) {
+        const n = bankProviders.length;
+        return n === 1 ? bankProviders[0].name : n + " banks · " + ((mk && mk.bankRail) || "local rail");
+      }
+      return mk && mk.bankRail ? ("Via " + mk.bankRail) : METHOD_META.bank.note;
+    }
+    if (k === "stablecoin") {
+      const names = (networks.length ? networks : NETWORKS.slice(0, 3)).map((n) => n.sub);
+      const uniq = names.filter((n, i) => names.indexOf(n) === i).slice(0, 3);
+      return "USDC · " + (uniq.length ? uniq.join(", ") : "Stellar, Ethereum, Optimism");
+    }
+    return "";
+  };
+  const MethodMarks = ({ id }) => {
+    if (id === "mobile_money") {
+      const wallets = ((mk && mk.wallets) || ["mpesa"]).slice(0, 3);
+      return (
+        <span style={{ display: "inline-flex", alignItems: "center" }}>
+          {wallets.map((w, i) => (
+            <span key={w} style={{ marginLeft: i ? -6 : 0, position: "relative", zIndex: wallets.length - i }}>
+              <BrandMark id={w} size={26} />
+            </span>
+          ))}
+        </span>
+      );
+    }
+    if (id === "bank") {
+      return (
+        <span
+          aria-hidden="true"
+          style={{
+            width: 28, height: 28, borderRadius: 8, background: C.chip, color: C.accentInk,
+            display: "grid", placeItems: "center", fontSize: 14, fontWeight: 800, flexShrink: 0,
+          }}
+        >
+          🏦
+        </span>
+      );
+    }
+    if (id === "stablecoin") {
+      return (
+        <span style={{ display: "inline-flex", alignItems: "center" }}>
+          <span style={{ width: 22, height: 22, borderRadius: 999, background: "#fff center/contain no-repeat url(/tokens/token-usdc.svg)", boxShadow: "0 0 0 2px #fff" }} />
+          <span style={{ width: 16, height: 16, borderRadius: 4, marginLeft: 4, background: "center/contain no-repeat url(/chains/chain-stellar.svg)" }} />
+        </span>
+      );
+    }
+    return null;
+  };
 
   if (state.phase === "loading")
     return shell(
@@ -422,7 +654,13 @@ export default function PayPage({ business, link }) {
         <p style={{ margin: 0, fontSize: 13, color: C.muted, lineHeight: 1.6 }}>{state.message}</p>
       </div>, false);
 
-  const initial = String(d.business_name || "?").trim().charAt(0).toUpperCase();
+  const initials = String(d.business_name || "?")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w.charAt(0).toUpperCase())
+    .join("") || "?";
   const inactive = String(d.status || "active") !== "active";
 
   /* -------------------------------------------------------- result states */
@@ -469,7 +707,7 @@ export default function PayPage({ business, link }) {
           style={{ marginTop: 16, width: "100%", padding: "13px 18px", borderRadius: 10, border: 0, background: C.accent, color: "#fff", fontSize: 14, fontWeight: 700, fontFamily: "inherit", cursor: "pointer" }}>
           Try again
         </button>
-        <button type="button" onClick={() => { reset(); setTab(null); }}
+        <button type="button" onClick={() => { reset(); setTab(null); setFlow("methods"); }}
           style={{ marginTop: 8, width: "100%", padding: "12px 18px", borderRadius: 10, border: "1px solid " + C.line, background: "#fff", color: C.ink, fontSize: 13.5, fontWeight: 600, fontFamily: "inherit", cursor: "pointer" }}>
           Use another method
         </button>
@@ -479,15 +717,19 @@ export default function PayPage({ business, link }) {
 
   const waiting = session && TERMINAL.indexOf(liveStatus) < 0;
 
+  const stickerAmt = cur + " " + money(d.amount, cur);
+  const payLabelAmt = head.pending
+    ? stickerAmt
+    : (head.currency + " " + money(head.amount, head.currency));
+
   /* ------------------------------------------------------------- the card */
   return shell(
-    <div style={{ padding: "16px 20px 20px" }}>
+    <div style={{ padding: "18px 20px 20px" }}>
       {/* merchant + country */}
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <span style={{ width: 30, height: 30, borderRadius: 8, background: C.accent, color: "#fff", display: "grid", placeItems: "center", fontSize: 11.5, fontWeight: 800 }}>{initial}</span>
+        <span style={{ width: 36, height: 36, borderRadius: 999, background: C.accent, color: "#fff", display: "grid", placeItems: "center", fontSize: 12, fontWeight: 800, flexShrink: 0 }}>{initials}</span>
         <span style={{ flex: 1, minWidth: 0 }}>
-          <strong style={{ display: "block", fontSize: 13.5, lineHeight: 1.3 }}>{d.business_name}</strong>
-          <span style={{ fontSize: 11, color: C.faint }}>{d.title}</span>
+          <strong style={{ display: "block", fontSize: 14.5, lineHeight: 1.3 }}>{d.business_name}</strong>
         </span>
         {offeredCountries.length > 1 ? (
           <span style={{ position: "relative" }}>
@@ -502,7 +744,7 @@ export default function PayPage({ business, link }) {
               <div role="listbox" style={{ position: "absolute", top: "calc(100% + 6px)", right: 0, zIndex: 20, width: 184, maxHeight: 248, overflowY: "auto", background: "#fff", border: "1px solid " + C.line, borderRadius: 10, boxShadow: "0 16px 40px -18px rgba(20,26,46,0.4)", padding: 4 }}>
                 {offeredCountries.map((code) => (
                   <button key={code} type="button" role="option" aria-selected={code === country}
-                    onClick={() => { setCountry(code); setCountryOpen(false); setTab(null); setLocalPhone(""); setPayError(""); }}
+                    onClick={() => { setCountry(code); setCountryOpen(false); setTab(null); setFlow("methods"); setLocalPhone(""); setPayError(""); }}
                     style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "8px 9px", border: 0, borderRadius: 7, background: code === country ? C.accentSoft : "transparent", cursor: "pointer", fontFamily: "inherit", fontSize: 12.5, color: C.ink, textAlign: "left" }}>
                     <img src={flagSrc(code)} alt="" width="17" height="12" style={{ display: "block", borderRadius: 2 }} />
                     <span style={{ flex: 1 }}>{MARKETS[code].name}</span>
@@ -515,16 +757,15 @@ export default function PayPage({ business, link }) {
         ) : null}
       </div>
 
-      {/* amount + rate hold */}
-      <div style={{ marginTop: 14 }}>
-        <div style={{ display: "flex", alignItems: "baseline", gap: 7 }}>
-          <span style={{ fontSize: 13, fontWeight: 700, color: C.muted, fontFamily: MONO }}>{head.currency}</span>
-          <strong style={{ fontSize: 34, letterSpacing: "-0.03em", lineHeight: 1 }}>{money(head.amount, head.currency)}</strong>
-        </div>
-        <div style={{ marginTop: 7, display: "flex", alignItems: "center", gap: 7, fontSize: 11, color: C.muted }}>
+      {/* amount */}
+      <div style={{ marginTop: 16 }}>
+        <span style={{ display: "block", fontSize: 12, color: C.faint, marginBottom: 4 }}>{d.title || "Payment"}</span>
+        <strong style={{ display: "block", fontSize: 30, letterSpacing: "-0.03em", lineHeight: 1.1, fontFamily: MONO, fontWeight: 700 }}>
+          {stickerAmt}
+        </strong>
+        <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 7, fontSize: 11, color: C.muted }}>
           <span style={{ width: 6, height: 6, borderRadius: 999, background: held > 0 ? C.ok : C.faint, flexShrink: 0 }} />
-          {/* Redundant when the headline is already USDC. */}
-          {usdcPrice && head.currency !== "USDC" ? (
+          {usdcPrice ? (
             <span style={{ fontFamily: MONO }}>≈ {approxUsdc(usdcPrice.charge_amount)} USDC</span>
           ) : null}
           {held != null ? (
@@ -533,48 +774,76 @@ export default function PayPage({ business, link }) {
             </span>
           ) : null}
         </div>
-        {head.currency !== cur ? (
-          <p style={{ margin: "6px 0 0", fontSize: 11.5, color: C.faint }}>
-            ≈ {money(d.amount, cur)} {cur} to {d.business_name}
-          </p>
-        ) : null}
-        {head.pending && mk ? (
-          /* The wallet provider quotes the local figure when the prompt is
-             raised, so we cannot state it yet. Say so rather than show the
-             merchant's sticker currency, which this payer cannot act on. */
-          <p style={{ margin: "4px 0 0", fontSize: 11.5, color: C.faint }}>
-            Charged in {mk.currency} at today’s rate — shown before you approve.
-          </p>
-        ) : null}
       </div>
 
-      {/* tabs */}
       {inactive || tabs.length === 0 ? (
         <p style={{ margin: "16px 0 0", padding: "12px 14px", borderRadius: 10, background: C.warnBg, color: C.warn, fontSize: 12.5, fontWeight: 600, lineHeight: 1.55 }}>
           {inactive ? "This link is no longer active." : d.business_name + " has not switched on a way to be paid here yet."}
         </p>
-      ) : (
+      ) : flow === "methods" && !waiting ? (
         <>
-          <div role="tablist" style={{ display: "grid", gridTemplateColumns: "repeat(" + tabs.length + ", 1fr)", gap: 3, padding: 3, marginTop: 15, background: C.chip, borderRadius: 10 }}>
+          <div role="radiogroup" aria-label="Payment method" style={{ marginTop: 18, display: "flex", flexDirection: "column", gap: 8 }}>
             {tabs.map((k) => {
               const on = active === k;
               return (
-                <button key={k} role="tab" aria-selected={on} type="button" disabled={Boolean(waiting)}
+                <button
+                  key={k}
+                  type="button"
+                  role="radio"
+                  aria-checked={on}
                   onClick={() => { setTab(k); setPayError(""); }}
                   style={{
-                    display: "flex", alignItems: "center", justifyContent: "center", gap: 5,
-                    padding: "8px 6px", borderRadius: 8, border: 0, cursor: waiting ? "default" : "pointer",
-                    fontFamily: "inherit", fontSize: 12, fontWeight: on ? 700 : 600,
-                    background: on ? "#fff" : "transparent", color: on ? C.ink : C.muted,
-                    boxShadow: on ? "0 1px 3px rgba(20,26,46,0.12)" : "none",
-                  }}>
-                  {TAB_LABEL[k]}
+                    display: "flex", alignItems: "center", gap: 12, width: "100%",
+                    padding: "12px 14px", borderRadius: 12, textAlign: "left",
+                    cursor: "pointer", fontFamily: "inherit", color: C.ink,
+                    border: "1.5px solid " + (on ? C.accent : C.line),
+                    background: on ? C.accentSoft : "#fff",
+                  }}
+                >
+                  <MethodMarks id={k} />
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <strong style={{ display: "block", fontSize: 13.5, lineHeight: 1.25 }}>{methodTitle(k)}</strong>
+                    <span style={{ display: "block", fontSize: 11.5, color: C.muted, marginTop: 2 }}>{methodNote(k)}</span>
+                  </span>
+                  <span
+                    aria-hidden="true"
+                    style={{
+                      width: 18, height: 18, borderRadius: 999, flexShrink: 0, boxSizing: "border-box",
+                      border: on ? "5px solid " + C.accent : "1.5px solid #c8ccd1",
+                      background: "#fff",
+                    }}
+                  />
                 </button>
               );
             })}
           </div>
-
-          <div style={{ marginTop: 16 }}>
+          <button
+            type="button"
+            onClick={() => { setFlow("details"); setPayError(""); }}
+            style={{
+              marginTop: 16, width: "100%", padding: "14px 18px", borderRadius: 12, border: 0,
+              background: C.accent, color: "#fff", fontSize: 14.5, fontWeight: 700,
+              fontFamily: "inherit", cursor: "pointer",
+            }}
+          >
+            Pay · {payLabelAmt}
+          </button>
+        </>
+      ) : (
+        <>
+          {!waiting ? (
+            <button
+              type="button"
+              onClick={() => { setFlow("methods"); setPayError(""); }}
+              style={{
+                marginTop: 14, marginBottom: 2, padding: 0, border: 0, background: "transparent",
+                color: C.muted, fontSize: 12.5, fontWeight: 600, fontFamily: "inherit", cursor: "pointer",
+              }}
+            >
+              ← {methodTitle(active)}
+            </button>
+          ) : null}
+          <div style={{ marginTop: waiting ? 16 : 10 }}>
             {/* ------------------------------------------- mobile money */}
             {active === "mobile_money" ? (
               waiting ? (
@@ -592,25 +861,52 @@ export default function PayPage({ business, link }) {
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 13 }}>
                   <span style={{ fontSize: 11.5, fontWeight: 700, color: C.muted }}>Choose your wallet</span>
-                  {!isNative && providerErr ? (
+                  {providerErr ? (
                     <p style={{ margin: 0, padding: "10px 12px", borderRadius: 9, background: C.warnBg, color: C.warn, fontSize: 12, fontWeight: 600 }}>{providerErr}</p>
                   ) : null}
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                    {(mk ? mk.wallets : []).map((w) => {
-                      const on = wallet === w;
-                      return (
-                        <button key={w} type="button" onClick={() => { setWallet(w); setPayError(""); }} aria-pressed={on}
-                          style={{
-                            display: "flex", alignItems: "center", justifyContent: "center", gap: 7,
-                            padding: "13px 10px", borderRadius: 10, cursor: "pointer", fontFamily: "inherit",
-                            border: "1.5px solid " + (on ? C.accent : C.line), background: "#fff",
-                            boxShadow: on ? "0 0 0 3px " + C.accentSoft : "none",
-                          }}>
-                          <BrandMark id={w} />
-                          <span style={{ fontSize: 11.5, fontWeight: 600, color: C.ink }}>{BRAND[w] ? BRAND[w].name : w}</span>
-                        </button>
-                      );
-                    })}
+                    {(providers && providers.length
+                      ? providers.slice(0, 8).map((p) => {
+                          const brand = brandKeyForProvider(p);
+                          const key = String(p.id || p.code || p.name);
+                          const on = selectedProviderId
+                            ? String(p.id || "") === selectedProviderId
+                            : wallet === brand || wallet === String(p.code || "").toLowerCase();
+                          return (
+                            <button key={key} type="button"
+                              onClick={() => {
+                                setWallet(brand || String(p.code || "").toLowerCase());
+                                setSelectedProviderId(String(p.id || ""));
+                                setPayError("");
+                              }}
+                              aria-pressed={on}
+                              style={{
+                                display: "flex", alignItems: "center", justifyContent: "center", gap: 7,
+                                padding: "13px 10px", borderRadius: 10, cursor: "pointer", fontFamily: "inherit",
+                                border: "1.5px solid " + (on ? C.accent : C.line), background: "#fff",
+                                boxShadow: on ? "0 0 0 3px " + C.accentSoft : "none",
+                              }}>
+                              {brand ? <BrandMark id={brand} /> : null}
+                              <span style={{ fontSize: 11.5, fontWeight: 600, color: C.ink }}>{p.name || (brand && BRAND[brand] && BRAND[brand].name) || key}</span>
+                            </button>
+                          );
+                        })
+                      : (mk ? mk.wallets : []).map((w) => {
+                          const on = wallet === w;
+                          return (
+                            <button key={w} type="button" onClick={() => { setWallet(w); setSelectedProviderId(""); setPayError(""); }} aria-pressed={on}
+                              style={{
+                                display: "flex", alignItems: "center", justifyContent: "center", gap: 7,
+                                padding: "13px 10px", borderRadius: 10, cursor: "pointer", fontFamily: "inherit",
+                                border: "1.5px solid " + (on ? C.accent : C.line), background: "#fff",
+                                boxShadow: on ? "0 0 0 3px " + C.accentSoft : "none",
+                              }}>
+                              <BrandMark id={w} />
+                              <span style={{ fontSize: 11.5, fontWeight: 600, color: C.ink }}>{BRAND[w] ? BRAND[w].name : w}</span>
+                            </button>
+                          );
+                        })
+                    )}
                   </div>
 
                   <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -646,7 +942,7 @@ export default function PayPage({ business, link }) {
             ) : null}
 
             {/* --------------------------------------------------- bank */}
-            {active === "bank_transfer" ? (
+            {active === "bank" ? (
               session && session.account_number ? (
                 <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                   <Stages names={["Details ready", "Awaiting transfer", "Matched"]} at={1} />
@@ -657,7 +953,7 @@ export default function PayPage({ business, link }) {
                   </div>
                   <Waiting title="Waiting for your transfer">
                     Send exactly {money(session.charge_amount, session.charge_currency)}{" "}
-                    {session.charge_currency} from M-Pesa or your banking app. A different
+                    {session.charge_currency} from your banking app. A different
                     amount will not match.
                   </Waiting>
                   <button type="button" onClick={reset}
@@ -670,9 +966,10 @@ export default function PayPage({ business, link }) {
                   <div style={{ display: "flex", gap: 11, alignItems: "flex-start", padding: 13, borderRadius: 11, background: "#fbfcfe", border: "1px solid " + C.line }}>
                     <span style={{ width: 34, height: 34, borderRadius: 9, background: C.chip, display: "grid", placeItems: "center", fontSize: 15, flexShrink: 0 }} aria-hidden="true">🏦</span>
                     <span style={{ flex: 1, minWidth: 0 }}>
-                      <strong style={{ display: "block", fontSize: 13 }}>Pay by bank transfer</strong>
+                      <strong style={{ display: "block", fontSize: 13 }}>Pay by bank</strong>
                       <span style={{ fontSize: 11.5, color: C.muted }}>
-                        Send {mk ? mk.currency : cur} from any {mk ? mk.name : ""} banking app.
+                        Send {mk ? mk.currency : cur} from any {mk ? mk.name : ""} banking app
+                        {providers && providers.length ? " · " + providers.length + " banks supported" : ""}.
                       </span>
                     </span>
                     {mk && mk.bankRail ? (
@@ -681,6 +978,27 @@ export default function PayPage({ business, link }) {
                       </span>
                     ) : null}
                   </div>
+                  {providers && providers.length ? (
+                    <div style={{ maxHeight: 160, overflowY: "auto", display: "flex", flexDirection: "column", gap: 4 }}>
+                      {providers.slice(0, 12).map((p) => {
+                        const on = String(p.id || "") === selectedProviderId;
+                        return (
+                          <button key={String(p.id || p.code || p.name)} type="button"
+                            onClick={() => { setSelectedProviderId(String(p.id || "")); setPayError(""); }}
+                            style={{
+                              display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
+                              padding: "9px 11px", borderRadius: 8, textAlign: "left", cursor: "pointer",
+                              fontFamily: "inherit", fontSize: 12.5, color: C.ink,
+                              border: "1px solid " + (on ? C.accent : C.line),
+                              background: on ? C.accentSoft : "#fff",
+                            }}>
+                            <span style={{ fontWeight: 600 }}>{p.name}</span>
+                            {p.code ? <span style={{ fontSize: 10, color: C.faint, fontFamily: MONO }}>{p.code}</span> : null}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : null}
                   <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 7 }}>
                     <Check>One-time account number for this payment</Check>
                     <Check>Use the reference so we can match it</Check>
@@ -689,7 +1007,13 @@ export default function PayPage({ business, link }) {
                   {payError ? (
                     <p style={{ margin: 0, padding: "10px 12px", borderRadius: 9, background: C.badBg, color: C.bad, fontSize: 12, fontWeight: 600 }}>{payError}</p>
                   ) : null}
-                  <button type="button" onClick={() => startPay({ method: "paybill" })} disabled={paying}
+                  <button type="button"
+                    onClick={() => startPay({
+                      method: "bank",
+                      country: country || "NG",
+                      network_id: selectedProviderId || undefined,
+                    })}
+                    disabled={paying}
                     style={{ padding: "14px 18px", borderRadius: 10, border: 0, background: C.accent, color: "#fff", fontSize: 14, fontWeight: 700, fontFamily: "inherit", cursor: paying ? "default" : "pointer", opacity: paying ? 0.6 : 1 }}>
                     {paying ? <><Spinner size={15} color="#fff" /> Preparing…</> : "Get transfer details · " + head.currency + " " + money(head.amount, head.currency)}
                   </button>
@@ -786,14 +1110,25 @@ export default function PayPage({ business, link }) {
                               <span>Merchant receives</span>
                               <span style={{ fontFamily: MONO, color: C.ink }}>{stableQuote.amount_usdc} USDC</span>
                             </div>
-                            <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", fontSize: 12, color: C.muted, borderBottom: "1px dashed " + C.line }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", fontSize: 12, color: C.muted }}>
                               <span>
-                                Network fee
+                                Network fee (CCTP)
                                 {Number(stableQuote.bridge_fee_usdc) === 0 ? (
                                   <span style={{ color: C.ok, fontWeight: 700 }}> · none on {activeNet.sub}</span>
                                 ) : null}
                               </span>
                               <span style={{ fontFamily: MONO, color: C.ink }}>{stableQuote.bridge_fee_usdc} USDC</span>
+                            </div>
+                            <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", fontSize: 12, color: C.muted, borderBottom: "1px dashed " + C.line }}>
+                              <span>
+                                Element fee
+                                {stableQuote.platform_fee_bps != null
+                                  ? " · " + (Number(stableQuote.platform_fee_bps) / 100).toFixed(2) + "%"
+                                  : " · 0.2%"}
+                              </span>
+                              <span style={{ fontFamily: MONO, color: C.ink }}>
+                                {stableQuote.element_fee_usdc != null ? stableQuote.element_fee_usdc : "—"} USDC
+                              </span>
                             </div>
                             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 10 }}>
                               <span style={{ fontSize: 12.5, fontWeight: 700 }}>You send</span>
