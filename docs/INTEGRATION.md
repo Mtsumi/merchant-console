@@ -93,13 +93,15 @@ just a name, country and a line saying what the account is for.
 
 **KYC and KYB are now distinct.** They are two different processes and the wizard had blurred them:
 
-- **Identity check (KYC)** is an automated SmileID liveness/ID check on a secure link. It is wired to the real `POST /kyc/initiate` + `GET /kyc/status` — these are **JWT-authed**, unlike the KYB endpoints, so the console can call them directly. "Start on this device" opens the link; SMS/email hand it off. Locally it reports the backend's real error (SmileID `partner_id` is a placeholder) rather than faking a pass.
+- **Identity check (KYC)** is an automated SmileID liveness/ID check on a secure link. It is wired to the real `POST /kyc/initiate` + `GET /kyc/status` (JWT-authed). "Start on this device" opens the link; SMS/email hand it off. Locally it reports the backend's real error (SmileID `partner_id` is a placeholder) rather than faking a pass.
 - **Business verification (KYB)** is document upload reviewed by hand. Stage 3 and the review step now say so explicitly.
 
 **Director documents are per person.** The checklist had a single generic "Directors' IDs" row, so a company declaring three directors could satisfy it with one upload. Each declared person now gets their own named pair — `Joe Thuku — ID document`, `Joe Thuku — proof of address` — generated from the Ownership stage. Adding, renaming or removing a director rebuilds the list, and `kybMergeDocs` preserves anything already uploaded (verified: an upload stayed "In review" through a rebuild triggered by renaming a different director). With no directors declared yet, a single row points back to Ownership.
 
-**Submission is still blocked** — see the KYB row in the table below. The wizard collects everything
-and saves locally; it cannot POST because the endpoints are API-key-only.
+**KYB submission is JWT-wired** when the merchant is signed in: the wizard PATCHes
+`/users/me/kyb/profile` and POSTs `/users/me/kyb/submit`. That path needs the aggregator's
+console bootstrap (`CONSOLE_PARTNER_API_KEY_ID` + ensure-linked partner customer) so a new
+merchant has a business row to attach. Disconnected / demo sessions still save locally only.
 
 ### Public checkout page (new)
 
@@ -220,7 +222,7 @@ Contacts with role `pays_you` feed the Clients screen; "Add client" creates one 
 | **Payments abroad (cross-border wizard)** | Quotes/accepts hit live PSP corridors (Yellow Card etc.). | `POST /partner/orders/quote` + accept exist; wizard stays simulated. |
 | **Bulk payouts (CSV)** | Backend batch rails are stablecoin-only today; fiat destinations are on the roadmap (assessment §3). | `disbursement_batches` machinery. |
 | **Automatic withdrawals (sweep rules)** | Backend complete (`/partner/.../auto-withdrawal`, evaluator job) but rules attach to partner accounts, which need the Wallets rail first. | Full CRUD + scheduler, tests. |
-| **KYB / business verification wizard** | Real flow is `POST /partner/customers` + documents + submit; the console's 5-stage wizard still saves locally. | Vault statuses incl. appeal/more-info (p2c). |
+| **KYB / business verification wizard** | JWT `/users/me/kyb/*` (session, profile, registry, documents, submit) when signed in; needs aggregator console bootstrap. Demo/offline still local-only. | Vault statuses incl. appeal/more-info (p2c). |
 | **Catalog, Subscriptions** | No product/subscription entities in the aggregator (assessment §2: Not supported / Roadmap). | — |
 | **Linked accounts (platforms/sub-merchants)** | Compliance-gated; tagged Roadmap in the design. | — |
 | **Team members & roles** | No membership enforcement backend yet (assessment §1 — "first thing to build" after tenancy). Settings → Team stays mock. | `business_users` table exists, unenforced. |
