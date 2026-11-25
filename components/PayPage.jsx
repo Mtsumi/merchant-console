@@ -583,12 +583,8 @@ export default function PayPage({ business, link }) {
       <a href="https://www.elementpay.net/" target="_blank" rel="noopener noreferrer"
         style={{ color: C.muted, fontWeight: 700, textDecoration: "none" }}>
         ElementPay
-<<<<<<< HEAD
-      </a>    </p>
-=======
       </a>
     </p>
->>>>>>> 6935d9f (feat: update payment methods and add support for USDC across multiple chains)
   );
 
   const methodTitle = (k) => (METHOD_META[k] && METHOD_META[k].title) || TAB_LABEL[k] || k;
@@ -739,12 +735,8 @@ export default function PayPage({ business, link }) {
     <div style={{ padding: "18px 20px 20px" }}>
       {/* merchant + country */}
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-<<<<<<< HEAD
-        <span style={{ width: 36, height: 36, borderRadius: 999, background: C.accent, color: "#fff", display: "grid", placeItems: "center", fontSize: 12, fontWeight: 800, flexShrink: 0 }}>{initials}</span>        <span style={{ flex: 1, minWidth: 0 }}>
-=======
         <span style={{ width: 36, height: 36, borderRadius: 999, background: C.accent, color: "#fff", display: "grid", placeItems: "center", fontSize: 12, fontWeight: 800, flexShrink: 0 }}>{initials}</span>
         <span style={{ flex: 1, minWidth: 0 }}>
->>>>>>> 6935d9f (feat: update payment methods and add support for USDC across multiple chains)
           <strong style={{ display: "block", fontSize: 14.5, lineHeight: 1.3 }}>{d.business_name}</strong>
         </span>
         {offeredCountries.length > 1 ? (
@@ -779,12 +771,8 @@ export default function PayPage({ business, link }) {
         <strong style={{ display: "block", fontSize: 30, letterSpacing: "-0.03em", lineHeight: 1.1, fontFamily: MONO, fontWeight: 700 }}>
           {stickerAmt}
         </strong>
-<<<<<<< HEAD
-        <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 7, fontSize: 11, color: C.muted }}>          <span style={{ width: 6, height: 6, borderRadius: 999, background: held > 0 ? C.ok : C.faint, flexShrink: 0 }} />
-=======
         <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 7, fontSize: 11, color: C.muted }}>
           <span style={{ width: 6, height: 6, borderRadius: 999, background: held > 0 ? C.ok : C.faint, flexShrink: 0 }} />
->>>>>>> 6935d9f (feat: update payment methods and add support for USDC across multiple chains)
           {usdcPrice ? (
             <span style={{ fontFamily: MONO }}>≈ {approxUsdc(usdcPrice.charge_amount)} USDC</span>
           ) : null}
@@ -880,14 +868,9 @@ export default function PayPage({ business, link }) {
                 </div>
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 13 }}>
-<<<<<<< HEAD
-                  <span style={{ fontSize: 11.5, fontWeight: 600, color: C.muted }}>Choose your wallet</span>
-                  {!isNative && providerErr ? (                    <p style={{ margin: 0, padding: "10px 12px", borderRadius: 9, background: C.warnBg, color: C.warn, fontSize: 12, fontWeight: 600 }}>{providerErr}</p>
-=======
                   <span style={{ fontSize: 11.5, fontWeight: 700, color: C.muted }}>Choose your wallet</span>
-                  {providerErr ? (
+                  {!isNative && providerErr ? (
                     <p style={{ margin: 0, padding: "10px 12px", borderRadius: 9, background: C.warnBg, color: C.warn, fontSize: 12, fontWeight: 600 }}>{providerErr}</p>
->>>>>>> 6935d9f (feat: update payment methods and add support for USDC across multiple chains)
                   ) : null}
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                     {(providers && providers.length
@@ -1039,12 +1022,8 @@ export default function PayPage({ business, link }) {
                       network_id: selectedProviderId || undefined,
                     })}
                     disabled={paying}
-<<<<<<< HEAD
-                    style={{ padding: "14px 18px", borderRadius: 10, border: 0, background: C.accent, color: "#fff", fontSize: 14, fontWeight: 700, fontFamily: "inherit", cursor: paying ? "default" : "pointer", opacity: paying ? 0.6 : 1 }}>                    {paying ? <><Spinner size={15} color="#fff" /> Preparing…</> : "Get transfer details · " + head.currency + " " + money(head.amount, head.currency)}
-=======
                     style={{ padding: "14px 18px", borderRadius: 10, border: 0, background: C.accent, color: "#fff", fontSize: 14, fontWeight: 700, fontFamily: "inherit", cursor: paying ? "default" : "pointer", opacity: paying ? 0.6 : 1 }}>
                     {paying ? <><Spinner size={15} color="#fff" /> Preparing…</> : "Get transfer details · " + head.currency + " " + money(head.amount, head.currency)}
->>>>>>> 6935d9f (feat: update payment methods and add support for USDC across multiple chains)
                   </button>
                 </div>
               )
