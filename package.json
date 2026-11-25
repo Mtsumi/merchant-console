@@ -4,9 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "next build --webpack",
     "start": "next start",
-    "check": "node scripts/check-qr.mjs && node scripts/check-maturity.mjs"
+    "check": "node scripts/check-no-merge-markers.mjs && node scripts/check-qr.mjs && node scripts/check-maturity.mjs",
+    "prebuild": "node scripts/check-no-merge-markers.mjs"
   },
   "dependencies": {
     "next": "^16.4.5",
@@ -22,5 +23,8 @@
     "@types/react-dom": "^19",
     "tailwindcss": "^4",
     "typescript": "^5"
+  },
+  "overrides": {
+    "magic-string": "0.30.17"
   }
 }
