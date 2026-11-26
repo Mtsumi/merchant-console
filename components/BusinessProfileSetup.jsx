@@ -40,7 +40,7 @@ export default function BusinessProfileSetup({ busy, error, onCreate }) {
           <fieldset style={{ margin: 0, padding: 0, border: 0 }}>
             <legend style={{ marginBottom: 8, fontSize: 12.5, fontWeight: 600 }}>Business type</legend>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-              {[["company", "Registered business"], ["solo", "Individual or sole trader"]].map(([value, label]) => {
+              {[["company", "Registered company"], ["solo", "Sole proprietor"]].map(([value, label]) => {
                 const selected = kind === value;
                 return <button key={value} type="button" onClick={() => setKind(value)} aria-pressed={selected} style={{ padding: "10px 9px", borderRadius: 9, border: `1px solid ${selected ? "#4338ca" : "#d8dbe4"}`, background: selected ? "#f1f0ff" : "#fff", color: selected ? "#3730a3" : "#34394b", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>{label}</button>;
               })}
